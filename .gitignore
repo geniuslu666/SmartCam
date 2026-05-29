@@ -1,0 +1,10 @@
+.env
+backend/.env
+frontend/.env
+
+*.log
+*.pid
+
+node_modules/
+dist/
+

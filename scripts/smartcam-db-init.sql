@@ -271,7 +271,7 @@ VALUES (
   'admin',
   'admin@smartcam.local',
   -- bcrypt hash of 'admin123', should be regenerated in production
-  '$2a$12$R9h7cIPz0gi.URNNW3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jKMm2',
+  '$2a$10$B9P0/0kcYTzGsXlnwzDvAOO.8B0axaSCwwwt7J8W1fnbfVhORpv0K',
   'admin',
   'active'
 ) ON CONFLICT (username) DO NOTHING;

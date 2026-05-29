@@ -10,6 +10,15 @@ rtspRtmpNotFoundDelay=0
 recordTS=1
 recordAppForRtsp=rtsp
 recordAppForRtmp=rtmp
+# 禁用发送端合并缓冲，降低推流侧延迟
+mergeWriteMS=0
+
+# HTTP API 配置
+[api]
+apiDebug=1
+secret=035c73f7-bb6f-4a59-abf7-3a47ddf33d0e
+snapRoot=./www/snap/
+defaultSnap=./www/logo.png
 
 # HTTP 服务器配置
 [http]
@@ -18,6 +27,8 @@ sslport=8433
 charSet=utf-8
 maxReqSize=131072
 keepAliveSecond=15
+allow_cross_domains=1
+allow_ip_range=::1,0.0.0.0-255.255.255.255
 notFound=<html><body><h1>404 Not Found</h1></body></html>
 dirMenu=1
 useSSL=0
@@ -45,6 +56,12 @@ port=1935
 sslport=19350
 timeoutSec=15
 
+# FFmpeg 转码配置
+[ffmpeg]
+bin=/usr/bin/ffmpeg
+cmd=%s -rtsp_transport tcp -i %s -an -vf scale=-2:1080 -c:v libx264 -preset veryfast -tune zerolatency -f flv %s
+restart_sec=0
+
 # RTSPS 服务器配置
 [rtsps]
 port=322
@@ -64,13 +81,13 @@ timeoutSec=15
 # Hook 接口配置（关键：用于按需拉流和自动断流）
 [hook]
 # 流未找到时触发，用于动态拉流
-on_stream_not_found=http://127.0.0.1:8082/api/hooks/stream_not_found
+on_stream_not_found=http://host.docker.internal:8081/api/hooks/stream_not_found
 # 无读者时触发，用于自动释放流
-on_stream_none_reader=http://127.0.0.1:8082/api/hooks/stream_none_reader
+on_stream_none_reader=http://host.docker.internal:8081/api/hooks/stream_none_reader
 # 服务器启动时
-on_server_started=http://127.0.0.1:8082/api/hooks/server_started
+on_server_started=http://host.docker.internal:8081/api/hooks/server_started
 # 流质量统计
-on_flow_report=http://127.0.0.1:8082/api/hooks/flow_report
+on_flow_report=http://host.docker.internal:8081/api/hooks/flow_report
 # Hook 接口连接超时
 hookConnectTimeout=10
 # Hook 接口读取超时

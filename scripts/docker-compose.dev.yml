@@ -1,22 +1,20 @@
 # ZLMediaKit MVP 开发配置
 # 用于本地开发的最小化配置
 
-version: '3.8'
-
 services:
   # PostgreSQL 数据库
   postgres:
     image: postgres:15-alpine
     container_name: smartcam-db
     environment:
-      POSTGRES_DB: smartcam
+      POSTGRES_DB: postgres
       POSTGRES_USER: smartcam
       POSTGRES_PASSWORD: smartcam_dev_pass
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/smartcam-db-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./smartcam-db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U smartcam"]
       interval: 10s
@@ -44,7 +42,7 @@ services:
 
   # ZLMediaKit 流媒体网关
   zlm:
-    image: zlmediakit/zlmediakit:latest
+    image: zlmediakit/zlmediakit:master
     container_name: smartcam-zlm
     ports:
       # RTSP 服务
@@ -54,19 +52,18 @@ services:
       - "1935:1935/tcp"
       # HTTP 服务
       - "8080:8080/tcp"
-      - "8081:8081/tcp"
-      # HLS 服务
-      - "8081:8081/tcp"
       # WebRTC 服务
       - "9000:9000/tcp"
     environment:
       # 启用 HTTP API
       - ENABLE_HTTPS=0
     volumes:
-      - ./ops/zlm/config.ini:/zlm/config.ini:ro
-      - zlm_data:/zlm/data
+      - ../ops/zlm/config.ini.dev:/opt/media/conf/config.ini:ro
+      - zlm_data:/opt/media/bin/www
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8081/"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/"]
       interval: 10s
       timeout: 5s
       retries: 5
