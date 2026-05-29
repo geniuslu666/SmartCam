@@ -1,0 +1,85 @@
+# ZLMediaKit MVP 开发配置
+# 用于本地开发的最小化配置
+
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartcam-db
+    environment:
+      POSTGRES_DB: smartcam
+      POSTGRES_USER: smartcam
+      POSTGRES_PASSWORD: smartcam_dev_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/smartcam-db-init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartcam"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartcam-dev
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: smartcam-cache
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartcam-dev
+
+  # ZLMediaKit 流媒体网关
+  zlm:
+    image: zlmediakit/zlmediakit:latest
+    container_name: smartcam-zlm
+    ports:
+      # RTSP 服务
+      - "554:554/tcp"
+      - "554:554/udp"
+      # RTMP 服务
+      - "1935:1935/tcp"
+      # HTTP 服务
+      - "8080:8080/tcp"
+      - "8081:8081/tcp"
+      # HLS 服务
+      - "8081:8081/tcp"
+      # WebRTC 服务
+      - "9000:9000/tcp"
+    environment:
+      # 启用 HTTP API
+      - ENABLE_HTTPS=0
+    volumes:
+      - ./ops/zlm/config.ini:/zlm/config.ini:ro
+      - zlm_data:/zlm/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8081/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartcam-dev
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
+  redis_data:
+  zlm_data:
+
+networks:
+  smartcam-dev:
+    driver: bridge

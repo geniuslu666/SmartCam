@@ -1,0 +1,135 @@
+# ZLMediaKit MVP 开发配置
+# 针对 RTSP NVR 拉流和 Hook 集成优化
+
+# 全局配置
+[global]
+flowThreshold=1000
+maxStreamWaitMS=5000
+streamNoneReaderDelayMS=20000
+rtspRtmpNotFoundDelay=0
+recordTS=1
+recordAppForRtsp=rtsp
+recordAppForRtmp=rtmp
+
+# HTTP 服务器配置
+[http]
+port=8080
+sslport=8433
+charSet=utf-8
+maxReqSize=131072
+keepAliveSecond=15
+notFound=<html><body><h1>404 Not Found</h1></body></html>
+dirMenu=1
+useSSL=0
+compress_min_size=1024
+
+# HTTPS API 服务器配置
+[https]
+port=8081
+sslport=8433
+charSet=utf-8
+maxReqSize=131072
+keepAliveSecond=15
+useSSL=0
+
+# RTSP 服务器配置
+[rtsp]
+port=554
+sslport=322
+timeoutSec=15
+enableRtpProxy=1
+
+# RTMP 服务器配置
+[rtmp]
+port=1935
+sslport=19350
+timeoutSec=15
+
+# RTSPS 服务器配置
+[rtsps]
+port=322
+
+# Shell 脚本配置
+[shell]
+maxReqSize=131072
+maxUploadSize=209715200
+keepAliveSecond=15
+
+# WebRTC 配置（可选）
+[webrtc]
+port=9000
+sslport=9433
+timeoutSec=15
+
+# Hook 接口配置（关键：用于按需拉流和自动断流）
+[hook]
+# 流未找到时触发，用于动态拉流
+on_stream_not_found=http://127.0.0.1:8082/api/hooks/stream_not_found
+# 无读者时触发，用于自动释放流
+on_stream_none_reader=http://127.0.0.1:8082/api/hooks/stream_none_reader
+# 服务器启动时
+on_server_started=http://127.0.0.1:8082/api/hooks/server_started
+# 流质量统计
+on_flow_report=http://127.0.0.1:8082/api/hooks/flow_report
+# Hook 接口连接超时
+hookConnectTimeout=10
+# Hook 接口读取超时
+hookReadTimeout=10
+# 是否启用 HTTPS Hook
+hook_enable=1
+
+# 流媒体处理配置
+[rtp_proxy]
+# 是否启用 RTCP 协议
+isRtcp=1
+# 启用 RTSP 推流
+rtspPushEnable=1
+# RTP 超时时间
+rtp_timeout_sec=30
+
+# 录制配置
+[record]
+# 是否启用录制
+appName=record
+# 录制路径
+folder=/zlm/data/record/
+# 是否启用 MP4 录制
+mp4SavePath=/zlm/data/record/
+# MP4 最大长度，秒
+mp4MaxSecond=3600
+# 是否在关闭时触发 on_record_ts hook
+autoCreate=1
+
+# HLS 配置
+[hls]
+# HLS 段时长（秒）
+segDuration=2
+# HLS 段数量
+segNum=3
+# HLS 文件保留时间（秒）
+delaySecond=0
+# 是否启用 HLS 兼容模式
+dirMenu=0
+# HLS 路径
+fileBufSize=65536
+
+# HTTP FLV 配置
+[http_flv]
+# 是否启用 Keep-Alive
+keep_alive_second=15
+
+# 日志配置
+[logger]
+# 日志级别：0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Fatal, 6=Off
+level=2
+# 日志打印线程 ID
+printThreadID=1
+# 日志文件路径
+filePath=/zlm/data/log/
+# 最大日志文件大小（MB）
+maxSize=100
+
+# 模块配置
+[module]
+# 是否启用所有模块
+enable_all=1
