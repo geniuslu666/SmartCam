@@ -1,0 +1,38 @@
+[Unit]
+Description=SmartCam Frontend Service
+Documentation=https://example.com/smartcam
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smartcam
+Group=smartcam
+WorkingDirectory=/opt/smartcam/frontend
+
+# 启动命令
+ExecStart=/usr/bin/npm run dev
+ExecReload=/bin/kill -SIGHUP $MAINPID
+ExecStop=/bin/kill -SIGTERM $MAINPID
+
+# 服务重启策略
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smartcam-frontend
+
+# 环境变量
+Environment="NODE_ENV=production"
+Environment="HOST=0.0.0.0"
+Environment="PORT=5173"
+
+# 资源限制
+LimitNOFILE=65535
+LimitNPROC=2000
+
+# 超时时间
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

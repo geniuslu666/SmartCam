@@ -1,0 +1,86 @@
+name: 后端代码检查
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'backend/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: 安装 Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      
+      - name: 代码格式检查
+        working-directory: ./backend
+        run: |
+          go fmt ./...
+          git diff --exit-code
+      
+      - name: 代码检查
+        working-directory: ./backend
+        run: go vet ./...
+      
+      - name: 安装 golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          working-directory: ./backend
+          version: latest
+          args: --timeout=5m
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: 安装 Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      
+      - name: 运行测试
+        working-directory: ./backend
+        run: go test -v -race -coverprofile=coverage.out ./...
+      
+      - name: 上传覆盖率
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage.out
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: 安装 Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      
+      - name: 构建二进制
+        working-directory: ./backend
+        run: |
+          go build -o bin/smartcam-server ./cmd/server
+      
+      - name: 上传二进制
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-binary
+          path: backend/bin/smartcam-server
+          retention-days: 1

@@ -1,0 +1,76 @@
+name: 自动部署到远程服务器
+
+# 触发条件
+on:
+  push:
+    branches:
+      - main
+      - deploy
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 检出代码
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # 输出部署信息
+      - name: 部署信息
+        run: |
+          echo "分支: ${{ github.ref }}"
+          echo "提交: ${{ github.sha }}"
+          echo "触发者: ${{ github.actor }}"
+
+      # 部署到远程服务器
+      - name: 部署到远程服务器
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          # 创建 SSH 密钥文件
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          
+          # 配置 SSH
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # 设置环境变量
+          export REMOTE_USER=$DEPLOY_USER
+          export REMOTE_HOST=$DEPLOY_HOST
+          export REMOTE_PATH=$DEPLOY_PATH
+          
+          # 部署
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" "cd $DEPLOY_PATH && git pull origin main && bash setup-dev.sh && bash restart-dev.sh"
+          
+          # 清理
+          rm -f ~/.ssh/deploy_key
+
+      # 验证部署
+      - name: 验证服务状态
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # 检查服务状态
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" "cd $DEPLOY_PATH && bash status-dev.sh"
+          
+          rm -f ~/.ssh/deploy_key
+
+      # 失败通知（可选，需要配置 Slack/钉钉 webhook）
+      - name: 部署失败通知
+        if: failure()
+        run: |
+          echo "❌ 部署失败，请检查日志"

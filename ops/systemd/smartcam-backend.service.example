@@ -1,0 +1,36 @@
+[Unit]
+Description=SmartCam Backend Service
+Documentation=https://example.com/smartcam
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smartcam
+Group=smartcam
+WorkingDirectory=/opt/smartcam
+
+# 加载环境变量
+EnvironmentFile=/opt/smartcam/.env
+
+# 启动命令
+ExecStart=/usr/local/go/bin/go run ./cmd/server
+ExecReload=/bin/kill -SIGHUP $MAINPID
+ExecStop=/bin/kill -SIGTERM $MAINPID
+
+# 服务重启策略
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smartcam-backend
+
+# 资源限制
+LimitNOFILE=65535
+LimitNPROC=2000
+
+# 超时时间
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
