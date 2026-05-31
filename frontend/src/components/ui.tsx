@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { clsx } from 'clsx'
+import { X } from 'lucide-react'
 
 export function cn(...inputs: Array<string | false | null | undefined>) {
   return clsx(inputs)
@@ -93,12 +94,12 @@ export function PageHeader({
   action?: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-14 flex-col justify-between gap-3 border-b border-border bg-background/95 px-6 py-4 sm:flex-row sm:items-center">
+    <div className="flex min-h-14 flex-col justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 sm:flex-row sm:items-center md:px-6 md:py-4">
       <div>
-        <h1 className="text-xl font-semibold tracking-normal text-foreground">{title}</h1>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        <h1 className="text-base font-semibold tracking-normal text-foreground md:text-xl">{title}</h1>
+        {description && <p className="mt-0.5 text-xs text-muted-foreground md:mt-1 md:text-sm">{description}</p>}
       </div>
-      {action}
+      {action && <div className="flex flex-wrap items-center gap-2">{action}</div>}
     </div>
   )
 }
@@ -125,6 +126,117 @@ export function StatCard({
         <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent text-accent-foreground">{icon}</div>
       </CardContent>
     </Card>
+  )
+}
+
+// ── Drawer ────────────────────────────────────────────────────────────────────
+type DrawerProps = {
+  open: boolean
+  onClose: () => void
+  title: string
+  description?: string
+  width?: 'sm' | 'md' | 'lg'
+  footer?: React.ReactNode
+  children: React.ReactNode
+}
+
+const drawerWidths = { sm: 'sm:w-96', md: 'sm:w-[480px]', lg: 'sm:w-[600px]' }
+
+export function Drawer({ open, onClose, title, description, width = 'md', footer, children }: DrawerProps) {
+  // Lock body scroll when open
+  useEffect(() => {
+    if (open) document.body.style.overflow = 'hidden'
+    else document.body.style.overflow = ''
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+
+  // ESC to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          'fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0',
+        )}
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <aside
+        className={cn(
+          'fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border bg-card shadow-2xl transition-transform duration-300 ease-in-out',
+          drawerWidths[width],
+          open ? 'translate-x-0' : 'translate-x-full',
+        )}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold leading-tight text-foreground">{title}</h2>
+            {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          {children}
+        </div>
+
+        {/* Footer */}
+        {footer && (
+          <div className="shrink-0 border-t border-border bg-muted/20 px-5 py-4">
+            {footer}
+          </div>
+        )}
+      </aside>
+    </>
+  )
+}
+
+// ── ConfirmDialog ─────────────────────────────────────────────────────────────
+type ConfirmDialogProps = {
+  open: boolean
+  title: string
+  message: string
+  confirmLabel?: string
+  onConfirm: () => void
+  onCancel: () => void
+  variant?: 'destructive' | 'default'
+}
+
+export function ConfirmDialog({
+  open, title, message, confirmLabel = '确认', onConfirm, onCancel, variant = 'destructive',
+}: ConfirmDialogProps) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="outline" onClick={onCancel}>取消</Button>
+          <Button variant={variant === 'destructive' ? 'destructive' : 'default'} onClick={onConfirm}>{confirmLabel}</Button>
+        </div>
+      </div>
+    </div>
   )
 }
 

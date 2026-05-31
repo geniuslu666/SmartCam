@@ -44,6 +44,7 @@ func NewRepository(cfg *config.Config, log *zap.SugaredLogger) (*Repository, err
 
 	// Auto-migrate tables (for development only, use real migrations in production)
 	db.AutoMigrate(
+		&models.BrandTemplate{},
 		&models.Property{},
 		&models.NVR{},
 		&models.Channel{},
@@ -119,19 +120,51 @@ func (r *Repository) GetPropertyByID(id uuid.UUID) (*models.Property, error) {
 	return &property, nil
 }
 
-// GetProperties retrieves a list of properties
-func (r *Repository) GetProperties(offset, limit int) ([]models.Property, int, error) {
-	var properties []models.Property
+// GetProperties retrieves a list of properties with stats from v_property_overview
+func (r *Repository) GetProperties(offset, limit int) ([]models.PropertyOverview, int, error) {
 	var total int
-
 	if err := r.DB.Model(&models.Property{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	if err := r.DB.Offset(offset).Limit(limit).Find(&properties).Error; err != nil {
+	// Fetch base property rows
+	var props []models.Property
+	if err := r.DB.Order("created_at").Offset(offset).Limit(limit).Find(&props).Error; err != nil {
 		return nil, 0, err
 	}
-	return properties, total, nil
+
+	if len(props) == 0 {
+		return nil, total, nil
+	}
+
+	// Fetch stats from view using a flat scan struct
+	type viewRow struct {
+		ID              string `gorm:"column:id"`
+		NVRCount        int64  `gorm:"column:nvr_count"`
+		ChannelCount    int64  `gorm:"column:channel_count"`
+		OfflineChannels int64  `gorm:"column:offline_channels"`
+		ActiveSessions  int64  `gorm:"column:active_sessions"`
+	}
+	var stats []viewRow
+	r.DB.Raw(`SELECT id::text, nvr_count, channel_count, offline_channels, active_sessions FROM v_property_overview`).Scan(&stats)
+
+	statsMap := make(map[string]viewRow, len(stats))
+	for _, s := range stats {
+		statsMap[s.ID] = s
+	}
+
+	list := make([]models.PropertyOverview, 0, len(props))
+	for _, p := range props {
+		o := models.PropertyOverview{Property: p}
+		if s, ok := statsMap[p.ID.String()]; ok {
+			o.NVRCount = s.NVRCount
+			o.ChannelCount = s.ChannelCount
+			o.OfflineChannels = s.OfflineChannels
+			o.ActiveSessions = s.ActiveSessions
+		}
+		list = append(list, o)
+	}
+	return list, total, nil
 }
 
 // UpdateProperty updates an existing property
@@ -248,4 +281,78 @@ func (r *Repository) EndPlaySession(id uuid.UUID) error {
 			"status":    "ended",
 			"ended_at":  &now,
 		}).Error
+}
+
+// ── Brand templates ───────────────────────────────────────────────────────────
+
+func (r *Repository) GetBrandTemplates() ([]models.BrandTemplate, error) {
+	var list []models.BrandTemplate
+	if err := r.DB.Order("brand, name").Find(&list).Error; err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+func (r *Repository) GetBrandTemplateByID(id uuid.UUID) (*models.BrandTemplate, error) {
+	var t models.BrandTemplate
+	if r.DB.Where("id = ?", id).First(&t).RecordNotFound() {
+		return nil, nil
+	}
+	return &t, nil
+}
+
+func (r *Repository) CreateBrandTemplate(t *models.BrandTemplate) error {
+	return r.DB.Create(t).Error
+}
+
+func (r *Repository) UpdateBrandTemplate(t *models.BrandTemplate) error {
+	return r.DB.Save(t).Error
+}
+
+func (r *Repository) DeleteBrandTemplate(id uuid.UUID) error {
+	return r.DB.Delete(&models.BrandTemplate{}, id).Error
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+
+func (r *Repository) GetUsers(offset, limit int) ([]models.User, int, error) {
+	var list []models.User
+	var total int
+	if err := r.DB.Model(&models.User{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := r.DB.Order("created_at").Offset(offset).Limit(limit).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func (r *Repository) CreateUser(user *models.User) error {
+	return r.DB.Create(user).Error
+}
+
+func (r *Repository) UpdateUser(user *models.User) error {
+	return r.DB.Save(user).Error
+}
+
+func (r *Repository) DeleteUser(id uuid.UUID) error {
+	return r.DB.Delete(&models.User{}, id).Error
+}
+
+// ── Audit logs ────────────────────────────────────────────────────────────────
+
+func (r *Repository) GetAuditLogs(offset, limit int) ([]models.AuditLog, int, error) {
+	var list []models.AuditLog
+	var total int
+	if err := r.DB.Model(&models.AuditLog{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := r.DB.Order("created_at desc").Offset(offset).Limit(limit).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func (r *Repository) CreateAuditLog(entry *models.AuditLog) error {
+	return r.DB.Create(entry).Error
 }

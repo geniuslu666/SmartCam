@@ -20,6 +20,8 @@ export interface Property {
   uplinkBandwidthMbps?: number;
   maxConcurrentStreams: number;
   status: 'active' | 'inactive' | 'maintenance';
+  latitude?: number;
+  longitude?: number;
   createdAt: string;
   updatedAt: string;
   // Extended fields from v_property_overview or API

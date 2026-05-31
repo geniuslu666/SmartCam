@@ -16,6 +16,26 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE EXTENSION IF NOT EXISTS "btree_gin";
 
+-- ================= 品牌模板表 =================
+
+CREATE TABLE brand_templates (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(100) NOT NULL,
+  brand VARCHAR(50) NOT NULL,
+  description TEXT,
+  rtsp_main_url_template VARCHAR(512) NOT NULL,
+  rtsp_sub_url_template VARCHAR(512) NOT NULL,
+  default_rtsp_port INT DEFAULT 554,
+  default_http_port INT DEFAULT 80,
+  default_username VARCHAR(100) DEFAULT 'admin',
+  notes TEXT,
+  is_system BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_brand_templates_brand ON brand_templates(brand);
+
 -- ================= 租户/物业表 =================
 
 CREATE TABLE properties (
@@ -28,6 +48,8 @@ CREATE TABLE properties (
   uplink_bandwidth_mbps INT DEFAULT 10 CHECK (uplink_bandwidth_mbps > 0),
   max_concurrent_streams INT DEFAULT 50 CHECK (max_concurrent_streams > 0),
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -40,8 +62,9 @@ CREATE INDEX idx_properties_created_at ON properties(created_at);
 CREATE TABLE nvrs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+  brand_template_id UUID REFERENCES brand_templates(id) ON DELETE SET NULL,
   name VARCHAR(255) NOT NULL,
-  brand VARCHAR(100) NOT NULL CHECK (brand IN ('hikvision', 'dahua', 'uniview', 'onvif', 'other')),
+  brand VARCHAR(100) NOT NULL CHECK (brand IN ('hikvision', 'dahua', 'uniview', 'axis', 'hanwha', 'reolink', 'onvif', 'other')),
   model VARCHAR(100),
   firmware_version VARCHAR(50),
   ip_address INET NOT NULL,
@@ -344,6 +367,103 @@ FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 CREATE TRIGGER trigger_alerts_timestamp BEFORE UPDATE ON alerts
 FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 
+-- ================= 品牌模板初始数据 =================
+
+INSERT INTO brand_templates (id, name, brand, description, rtsp_main_url_template, rtsp_sub_url_template, default_rtsp_port, default_http_port, default_username, notes, is_system) VALUES
+('b1000000-0000-0000-0000-000000000001', '海康威视 NVR', 'hikvision',
+ '海康威视 NVR/IPC 通用模板，适用于 DS 系列设备',
+ 'rtsp://{username}:{password}@{ip}:{port}/Streaming/channels/{channel_number}01',
+ 'rtsp://{username}:{password}@{ip}:{port}/Streaming/channels/{channel_number}02',
+ 554, 80, 'admin',
+ '通道编号格式：1→101, 2→201，以此类推。主码流常为 H.265，子码流为 H.264。', true),
+
+('b2000000-0000-0000-0000-000000000002', '大华 NVR', 'dahua',
+ '大华 NVR/IPC 通用模板，适用于 DHI/SD 系列设备',
+ 'rtsp://{username}:{password}@{ip}:{port}/cam/realmonitor?channel={channel_number}&subtype=0',
+ 'rtsp://{username}:{password}@{ip}:{port}/cam/realmonitor?channel={channel_number}&subtype=1',
+ 554, 80, 'admin',
+ 'subtype=0 主码流，subtype=1 子码流。通道号从 1 开始。', true),
+
+('b3000000-0000-0000-0000-000000000003', '宇视 (Uniview) NVR', 'uniview',
+ '宇视 NVR/IPC 通用模板，适用于 NVR3xx/5xx 系列',
+ 'rtsp://{username}:{password}@{ip}:{port}/unicast/c{channel_number}/s0/live',
+ 'rtsp://{username}:{password}@{ip}:{port}/unicast/c{channel_number}/s1/live',
+ 554, 80, 'admin',
+ 's0 主码流，s1 子码流。通道号从 1 开始。', true),
+
+('b4000000-0000-0000-0000-000000000004', 'Axis 网络摄像机', 'axis',
+ 'Axis 单通道 IPC 模板，适用于 P/Q/M 系列',
+ 'rtsp://{username}:{password}@{ip}:{port}/axis-media/media.amp?videocodec=h264',
+ 'rtsp://{username}:{password}@{ip}:{port}/axis-media/media.amp?videocodec=h264&resolution=640x360',
+ 554, 80, 'root',
+ 'Axis 默认账号为 root。单通道设备无需通道号参数。', true),
+
+('b5000000-0000-0000-0000-000000000005', 'Hanwha (三星) NVR', 'hanwha',
+ '韩华/三星 XNV/QNV 系列通用模板',
+ 'rtsp://{username}:{password}@{ip}:{port}/profile1/media.smp',
+ 'rtsp://{username}:{password}@{ip}:{port}/profile2/media.smp',
+ 554, 80, 'admin',
+ 'profile1 主码流，profile2 子码流。部分型号需要开启 RTSP。', true),
+
+('b6000000-0000-0000-0000-000000000006', 'Reolink 摄像机', 'reolink',
+ 'Reolink IPC 通用模板，适用于 RLC 系列',
+ 'rtsp://{username}:{password}@{ip}:{port}//h264Preview_01_main',
+ 'rtsp://{username}:{password}@{ip}:{port}//h264Preview_01_sub',
+ 554, 80, 'admin',
+ '注意双斜杠。多通道设备将 01 改为通道号。', true),
+
+('b7000000-0000-0000-0000-000000000007', 'ONVIF 通用模板', 'onvif',
+ '符合 ONVIF 标准的设备通用模板',
+ 'rtsp://{username}:{password}@{ip}:{port}/onvif/profile1/media.smp',
+ 'rtsp://{username}:{password}@{ip}:{port}/onvif/profile2/media.smp',
+ 554, 80, 'admin',
+ '不同设备 ONVIF path 可能不同，建议用 ONVIF Device Manager 确认实际地址。', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- ================= 初始测试数据 =================
+
+INSERT INTO properties (id, name, description, status)
+VALUES ('aaaaaaaa-0000-0000-0000-000000000001', '测试物业 A', '开发测试用物业', 'active')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO nvrs (id, property_id, brand_template_id, name, brand, ip_address, rtsp_port, http_port,
+  username, password_encrypted, channel_count, support_h264, support_h265, is_online, status)
+VALUES ('bbbbbbbb-0000-0000-0000-000000000001',
+  'aaaaaaaa-0000-0000-0000-000000000001',
+  'b1000000-0000-0000-0000-000000000001',
+  '测试NVR', 'hikvision', '192.168.147.100', 554, 80,
+  'admin', 'Mouse2026', 4, true, true, true, 'active')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO channels (id, nvr_id, property_id, channel_number, name, location,
+  rtsp_main_url_template, rtsp_sub_url_template, main_stream_encoding, sub_stream_encoding, is_online, status)
+VALUES
+  ('c1000000-0000-0000-0000-000000000001',
+   'bbbbbbbb-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
+   1, '测试摄像头 1', '大门口',
+   'rtsp://{username}:{password}@192.168.147.20:{port}/Streaming/Channels/101',
+   'rtsp://{username}:{password}@192.168.147.20:{port}/Streaming/Channels/102',
+   'H.265', 'H.264', true, 'active'),
+  ('c2000000-0000-0000-0000-000000000002',
+   'bbbbbbbb-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
+   2, '测试摄像头 2', '停车场',
+   'rtsp://{username}:{password}@192.168.147.21:{port}/Streaming/Channels/101',
+   'rtsp://{username}:{password}@192.168.147.21:{port}/Streaming/Channels/102',
+   'H.265', 'H.264', true, 'active'),
+  ('c3000000-0000-0000-0000-000000000003',
+   'bbbbbbbb-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
+   3, '测试摄像头 3', '走廊',
+   'rtsp://{username}:{password}@192.168.147.22:{port}/Streaming/Channels/101',
+   'rtsp://{username}:{password}@192.168.147.22:{port}/Streaming/Channels/102',
+   'H.265', 'H.264', true, 'active'),
+  ('c4000000-0000-0000-0000-000000000004',
+   'bbbbbbbb-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
+   4, '测试摄像头 4', '后院',
+   'rtsp://{username}:{password}@192.168.147.23:{port}/Streaming/Channels/101',
+   'rtsp://{username}:{password}@192.168.147.23:{port}/Streaming/Channels/102',
+   'H.265', 'H.264', true, 'active')
+ON CONFLICT (id) DO NOTHING;
+
 -- ================= 初始化完成 =================
 
 \echo 'SmartCam MVP 数据库初始化完成'
@@ -352,3 +472,4 @@ FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 \echo '✓ 已创建视图'
 \echo '✓ 已创建触发器'
 \echo '✓ 已创建默认用户 (admin / admin123)'
+\echo '✓ 已创建测试物业 A 和 4 路摄像头'

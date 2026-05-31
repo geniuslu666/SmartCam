@@ -23,6 +23,21 @@ func (base *BaseModel) BeforeCreate(scope *gorm.Scope) error {
 	return nil
 }
 
+// BrandTemplate stores RTSP URL templates for camera/NVR brands
+type BrandTemplate struct {
+	BaseModel
+	Name                 string `gorm:"type:varchar(100);not null" json:"name"`
+	Brand                string `gorm:"type:varchar(50);not null" json:"brand"`
+	Description          string `gorm:"type:text" json:"description,omitempty"`
+	RTSPMainURLTemplate  string `gorm:"type:varchar(512);not null" json:"rtsp_main_url_template"`
+	RTSPSubURLTemplate   string `gorm:"type:varchar(512);not null" json:"rtsp_sub_url_template"`
+	DefaultRTSPPort      int    `gorm:"type:integer;default:554" json:"default_rtsp_port"`
+	DefaultHTTPPort      int    `gorm:"type:integer;default:80" json:"default_http_port"`
+	DefaultUsername      string `gorm:"type:varchar(100);default:admin" json:"default_username"`
+	Notes                string `gorm:"type:text" json:"notes,omitempty"`
+	IsSystem             bool   `gorm:"default:false" json:"is_system"`
+}
+
 // Property represents a property/tenant
 type Property struct {
 	BaseModel
@@ -31,24 +46,29 @@ type Property struct {
 	Address                string `gorm:"type:varchar(255)" json:"address,omitempty"`
 	ContactPerson          string `gorm:"type:varchar(100)" json:"contact_person,omitempty"`
 	ContactPhone           string `gorm:"type:varchar(20)" json:"contact_phone,omitempty"`
-	UplinkBandwidthMbps    int    `gorm:"type:integer" json:"uplink_bandwidth_mbps,omitempty"`
-	MaxConcurrentStreams   int    `gorm:"type:integer;default:50" json:"max_concurrent_streams"`
-	Status                 string `gorm:"type:varchar(20);default:active" json:"status"` // active/inactive/maintenance
+	UplinkBandwidthMbps    int     `gorm:"type:integer" json:"uplink_bandwidth_mbps,omitempty"`
+	MaxConcurrentStreams   int     `gorm:"type:integer;default:50" json:"max_concurrent_streams"`
+	Status                 string  `gorm:"type:varchar(20);default:active" json:"status"` // active/inactive/maintenance
+	Latitude               float64 `gorm:"type:double precision" json:"latitude,omitempty"`
+	Longitude              float64 `gorm:"type:double precision" json:"longitude,omitempty"`
 }
 
 // NVR represents an NVR device
 type NVR struct {
 	BaseModel
-	PropertyID         uuid.UUID  `gorm:"type:uuid;not null" json:"property_id"`
-	Name               string     `gorm:"type:varchar(255);not null" json:"name"`
-	Brand              string     `gorm:"type:varchar(100);not null" json:"brand"` // hikvision/dahua/uniview/onvif/other
+	PropertyID        uuid.UUID  `gorm:"type:uuid;not null" json:"property_id"`
+	BrandTemplateID   *uuid.UUID `gorm:"type:uuid" json:"brand_template_id,omitempty"`
+	Name              string     `gorm:"type:varchar(255);not null" json:"name"`
+	Brand             string     `gorm:"type:varchar(100);not null" json:"brand"` // hikvision/dahua/uniview/axis/hanwha/reolink/onvif/other
 	Model              string     `gorm:"type:varchar(100)" json:"model,omitempty"`
 	FirmwareVersion    string     `gorm:"type:varchar(50)" json:"firmware_version,omitempty"`
 	IPAddress          string     `gorm:"type:inet;not null" json:"ip_address"`
 	RTSPPort           int        `gorm:"type:integer;default:554" json:"rtsp_port"`
 	HTTPPort           int        `gorm:"type:integer;default:80" json:"http_port"`
+	SDKPort            int        `gorm:"type:integer;default:8000" json:"sdk_port"`
+	AccessType         string     `gorm:"type:varchar(20);default:rtsp" json:"access_type"` // rtsp/isapi/sdk
 	Username           string     `gorm:"type:varchar(100);not null" json:"username"`
-	PasswordEncrypted  string     `gorm:"type:varchar(255)" json:"-"` // bcrypt hash
+	PasswordEncrypted  string     `gorm:"type:varchar(255)" json:"-"` // plaintext stored for stream auth
 	MaxBandwidthMbps   int        `gorm:"type:integer" json:"max_bandwidth_mbps,omitempty"`
 	ChannelCount       int        `gorm:"type:integer;not null" json:"channel_count"`
 	SupportH264        bool       `gorm:"default:true" json:"support_h264"`
@@ -61,6 +81,24 @@ type NVR struct {
 	Channels           []Channel  `json:"channels,omitempty"`
 }
 
+// PropertyOverview combines Property with stats from v_property_overview view
+type PropertyOverview struct {
+	Property
+	NVRCount        int64  `json:"nvr_count"`
+	ChannelCount    int64  `json:"channel_count"`
+	OfflineChannels int64  `json:"offline_channels"`
+	ActiveSessions  int64  `json:"active_sessions"`
+	LastPlayTime    string `json:"last_play_time,omitempty"`
+}
+
+// RecordingSegment is a non-persisted struct for ISAPI recording search results
+type RecordingSegment struct {
+	TrackID   string `json:"track_id"`
+	StartTime string `json:"start_time"` // ISO8601 e.g. 2024-01-01T08:00:00Z
+	EndTime   string `json:"end_time"`
+	CodecType string `json:"codec_type,omitempty"` // H.264 / H.265
+}
+
 // Channel represents a camera channel on an NVR
 type Channel struct {
 	BaseModel
@@ -69,6 +107,7 @@ type Channel struct {
 	ChannelNumber          int        `gorm:"type:integer;not null" json:"channel_number"` // 101, 102 etc.
 	Name                   string     `gorm:"type:varchar(255);not null" json:"name"`
 	Location               string     `gorm:"type:varchar(255)" json:"location,omitempty"`
+	AccessType             string     `gorm:"type:varchar(20);default:rtsp" json:"access_type"` // rtsp/isapi/sdk — per-channel override
 	RTSPMainURLTemplate    string     `gorm:"type:varchar(512)" json:"rtsp_main_url_template,omitempty"`
 	RTSPSubURLTemplate     string     `gorm:"type:varchar(512)" json:"rtsp_sub_url_template,omitempty"`
 	MainStreamEncoding     string     `gorm:"type:varchar(50);default:H.264" json:"main_stream_encoding,omitempty"`
